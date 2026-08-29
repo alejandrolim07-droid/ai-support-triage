@@ -1,5 +1,6 @@
 import json
 import os
+
 from flask import Flask, jsonify, request
 from google import genai
 
@@ -12,6 +13,7 @@ if not api_key:
     raise RuntimeError("GEMINI_API_KEY is not set in this PowerShell window")
 
 client = genai.Client(api_key=api_key)
+
 
 @app.post("/triage")
 def triage_ticket():
@@ -78,6 +80,7 @@ reason: a short explanation
 
     except Exception as error:
         return jsonify({"error": "Triage failed", "details": str(error)}), 500
+
 
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5000, debug=False)

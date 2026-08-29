@@ -1,9 +1,0 @@
-{
-  "ticket_id": 1787903416726,
-  "customer": "mac",
-  "original_message": "I cannot log in to my account and need help urgently.",
-  "category": "Account",
-  "urgency": "High",
-  "needs_human_review": true,
-  "reason": "The customer is locked out of their account and explicitly requested urgent assistance."
-}

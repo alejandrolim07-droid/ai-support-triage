@@ -1,0 +1,133 @@
+{
+  "name": "OmniServe - Customer Intake to Supabase",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "omniserve-customer-intake",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "6ea821fa-4557-4ef1-8b6d-f8ebd68fe147",
+      "name": "Customer Intake Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -640,
+        0
+      ],
+      "webhookId": "omniserve-customer-intake"
+    },
+    {
+      "parameters": {
+        "jsCode": "const payload = $json.body ?? $json;\n\nconst fullName = String(payload.name ?? payload.full_name ?? '').trim();\nconst email = String(payload.email ?? '').trim().toLowerCase();\nconst message = String(payload.message ?? payload.description ?? '').trim();\n\nif (!fullName || !email || !message) {\n  throw new Error('name, email, and message are required');\n}\n\nconst text = message.toLowerCase();\n\nconst billingWords = ['invoice', 'billing', 'charged', 'charge', 'refund', 'payment', 'receipt', 'subscription'];\nconst salesWords = ['price', 'pricing', 'quote', 'demo', 'buy', 'purchase', 'plan', 'sales'];\nconst criticalWords = ['security breach', 'fraud', 'account hacked', 'data loss', 'system down'];\nconst highWords = ['urgent', 'cannot access', 'locked out', 'charged twice', 'duplicate charge', 'cancel immediately'];\n\nlet department = 'CUSTOMER_SUPPORT';\nif (billingWords.some((word) => text.includes(word))) department = 'BILLING';\nelse if (salesWords.some((word) => text.includes(word))) department = 'SALES';\n\nlet priority = 'NORMAL';\nif (criticalWords.some((word) => text.includes(word))) priority = 'CRITICAL';\nelse if (highWords.some((word) => text.includes(word))) priority = 'HIGH';\n\nconst requiresHumanReview =\n  department === 'BILLING' ||\n  priority === 'HIGH' ||\n  priority === 'CRITICAL';\n\nconst now = new Date();\nconst datePart = now.toISOString().slice(0, 10).replaceAll('-', '');\nconst randomPart = Math.random().toString(36).slice(2, 8).toUpperCase();\nconst caseId = `CASE-${datePart}-${randomPart}`;\n\nreturn [{\n  json: {\n    success: true,\n    caseId,\n    customer: {\n      name: fullName,\n      email\n    },\n    issue: {\n      message,\n      department,\n      priority,\n      status: 'NEW'\n    },\n    routing: {\n      queue: department,\n      requiresHumanReview\n    },\n    receivedAt: now.toISOString()\n  }\n}];"
+      },
+      "id": "962b3611-0e94-4d7a-af45-fc22a0c609c6",
+      "name": "Validate and Route Case",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -360,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://rjudsonxkaohbqhxmvvw.supabase.co/rest/v1/rpc/create_customer_case",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ p_case_number: $json.caseId, p_full_name: $json.customer.name, p_email: $json.customer.email, p_description: $json.issue.message, p_department: $json.issue.department, p_priority: $json.issue.priority, p_requires_human_review: $json.routing.requiresHumanReview, p_received_at: $json.receivedAt }) }}",
+        "options": {}
+      },
+      "id": "74096c17-361e-421c-8cdc-9f547ce027c9",
+      "name": "Save Case to Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -80,
+        0
+      ],
+      "notesInFlow": true,
+      "notes": "Select your Supabase service-role Header Auth credential. Do not store the secret key in this workflow."
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ...$('Validate and Route Case').first().json, database: $json } }}",
+        "options": {
+          "responseCode": 201
+        }
+      },
+      "id": "0a432b92-aa7d-4516-b001-881e39262166",
+      "name": "Return Case Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        200,
+        0
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Customer Intake Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate and Route Case",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate and Route Case": {
+      "main": [
+        [
+          {
+            "node": "Save Case to Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Case to Supabase": {
+      "main": [
+        [
+          {
+            "node": "Return Case Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "5e57a551-bcfd-4dbd-9b31-16626fabddae",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
